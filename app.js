@@ -23,18 +23,13 @@ const UsernameManager = {
 const ImageUploader = {
   file: null,
 
-  setFile(file) {
-    this.file = file;
-  },
-
-  clear() {
-    this.file = null;
-  },
+  setFile(file) { this.file = file; },
+  clear()       { this.file = null; },
 
   async toBase64() {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onload  = () => resolve(reader.result.split(',')[1]);
       reader.onerror = reject;
       reader.readAsDataURL(this.file);
     });
@@ -50,78 +45,19 @@ const ImageUploader = {
 };
 
 // ─────────────────────────────────────────────
-// NetlifyClient — all GitHub calls go server-side
+// NetlifyClient
 // ─────────────────────────────────────────────
 const NetlifyClient = {
-  // Upload image via Netlify function
-  async uploadImage(username, filename, base64, mimeType) {
-    const res = await fetch('/.netlify/functions/upload-image', {
-      method: 'POST',
+  async runOCR(base64, mimeType) {
+    const res = await fetch('/.netlify/functions/ocr', {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, filename, base64, mimeType })
+      body:    JSON.stringify({ base64, mimeType })
     });
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `Upload failed: ${res.status}`);
-    return data; // { resultPath }
-  },
-
-  // Poll for OCR result via Netlify function
-  async getResult(resultPath) {
-    const res = await fetch('/.netlify/functions/get-result', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resultPath })
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `Poll failed: ${res.status}`);
-    return data; // { ready: bool, text: string|null }
-  }
-};
-
-// ─────────────────────────────────────────────
-// PollingManager
-// ─────────────────────────────────────────────
-const PollingManager = {
-  intervalId: null,
-  attempts: 0,
-  maxAttempts: 40,    // 40 × 8s = ~5.3 min
-  intervalMs: 8000,
-
-  start(resultPath, onResult, onTimeout, onError) {
-    this.attempts = 0;
-    this.stop();
-
-    this.intervalId = setInterval(async () => {
-      this.attempts++;
-
-      try {
-        const data = await NetlifyClient.getResult(resultPath);
-
-        if (data.ready) {
-          this.stop();
-          onResult(data.text);
-          return;
-        }
-      } catch (err) {
-        this.stop();
-        onError(err);
-        return;
-      }
-
-      if (this.attempts >= this.maxAttempts) {
-        this.stop();
-        onTimeout();
-      }
-    }, this.intervalMs);
-  },
-
-  stop() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
+    if (!res.ok) throw new Error(data.error || `OCR failed: ${res.status}`);
+    return data.text;
   }
 };
 
@@ -131,12 +67,8 @@ const PollingManager = {
 const UIController = {
   init() {
     const username = UsernameManager.get();
-    if (!username) {
-      this.showModal();
-    } else {
-      this.showApp(username);
-    }
-
+    if (!username) this.showModal();
+    else           this.showApp(username);
     this.bindEvents();
   },
 
@@ -152,14 +84,14 @@ const UIController = {
   },
 
   setStatus(msg, type = 'info', spinning = false) {
-    const el = document.getElementById('statusMessage');
-    const inner = el.querySelector('.status-inner');
+    const el      = document.getElementById('statusMessage');
+    const inner   = el.querySelector('.status-inner');
     const spinner = document.getElementById('spinner');
-    const text = document.getElementById('statusText');
+    const text    = document.getElementById('statusText');
 
-    el.style.display = 'block';
-    text.textContent = msg;
-    inner.className = 'status-inner' + (type !== 'info' ? ` ${type}` : '');
+    el.style.display  = 'block';
+    text.textContent  = msg;
+    inner.className   = 'status-inner' + (type !== 'info' ? ` ${type}` : '');
     spinner.className = 'loading-spinner' + (spinning ? ' active' : '');
   },
 
@@ -177,75 +109,8 @@ const UIController = {
     ImageUploader.clear();
     document.getElementById('fileInput').value = '';
     document.getElementById('previewSection').style.display = 'none';
-    document.getElementById('outputSection').style.display = 'none';
+    document.getElementById('outputSection').style.display  = 'none';
     this.hideStatus();
-  },
-
-  bindEvents() {
-    // ── Save username
-    document.getElementById('saveUsername').addEventListener('click', () => {
-      const val = document.getElementById('usernameInput').value.trim();
-      if (!val) {
-        document.getElementById('usernameInput').focus();
-        return;
-      }
-      UsernameManager.set(val);
-      this.showApp(UsernameManager.get());
-    });
-
-    document.getElementById('usernameInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') document.getElementById('saveUsername').click();
-    });
-
-    // ── Change user
-    document.getElementById('changeUser').addEventListener('click', () => {
-      UsernameManager.clear();
-      PollingManager.stop();
-      this.resetUpload();
-      document.getElementById('usernameInput').value = '';
-      this.showModal();
-    });
-
-    // ── File input
-    const fileInput = document.getElementById('fileInput');
-    const uploadLabel = document.getElementById('uploadLabel');
-
-    fileInput.addEventListener('change', (e) => {
-      if (e.target.files[0]) this.handleFile(e.target.files[0]);
-    });
-
-    // Drag and drop
-    uploadLabel.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      uploadLabel.classList.add('drag-over');
-    });
-
-    uploadLabel.addEventListener('dragleave', () => {
-      uploadLabel.classList.remove('drag-over');
-    });
-
-    uploadLabel.addEventListener('drop', (e) => {
-      e.preventDefault();
-      uploadLabel.classList.remove('drag-over');
-      const file = e.dataTransfer.files[0];
-      if (file) this.handleFile(file);
-    });
-
-    // ── Process button
-    document.getElementById('processBtn').addEventListener('click', () => this.runOCR());
-
-    // ── Clear button
-    document.getElementById('clearBtn').addEventListener('click', () => this.resetUpload());
-
-    // ── Copy button
-    document.getElementById('copyBtn').addEventListener('click', () => {
-      const text = document.getElementById('outputText').textContent;
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById('copyBtn');
-        btn.textContent = 'COPIED!';
-        setTimeout(() => { btn.textContent = 'COPY'; }, 2000);
-      });
-    });
   },
 
   handleFile(file) {
@@ -257,7 +122,6 @@ const UIController = {
       this.setStatus('File exceeds 5MB limit.', 'error');
       return;
     }
-
     ImageUploader.setFile(file);
     ImageUploader.showPreview(file);
     this.hideStatus();
@@ -265,8 +129,6 @@ const UIController = {
   },
 
   async runOCR() {
-    const username = UsernameManager.get();
-
     if (!ImageUploader.file) {
       this.setStatus('Please select an image first.', 'error');
       return;
@@ -276,44 +138,73 @@ const UIController = {
     btn.disabled = true;
 
     try {
-      const timestamp = Date.now();
-      const ext = ImageUploader.file.name.split('.').pop();
-      const filename = `${username}_${timestamp}.${ext}`;
-
       this.setStatus('Encoding image…', 'info', true);
       const base64 = await ImageUploader.toBase64();
 
-      this.setStatus('Uploading image…', 'info', true);
-      const { resultPath } = await NetlifyClient.uploadImage(
-        username,
-        filename,
-        base64,
-        ImageUploader.file.type
-      );
+      this.setStatus('Running OCR…', 'info', true);
+      const text = await NetlifyClient.runOCR(base64, ImageUploader.file.type);
 
-      this.setStatus('Uploaded. Waiting for OCR to process… (this takes 2–4 min)', 'info', true);
-
-      PollingManager.start(
-        resultPath,
-        (text) => {
-          this.setStatus('OCR complete!', 'success', false);
-          this.showOutput(text);
-          btn.disabled = false;
-        },
-        () => {
-          this.setStatus('Timed out. Check the Actions tab in GitHub for errors.', 'error', false);
-          btn.disabled = false;
-        },
-        (err) => {
-          this.setStatus(`Polling error: ${err.message}`, 'error', false);
-          btn.disabled = false;
-        }
-      );
-
+      this.setStatus('Done!', 'success', false);
+      this.showOutput(text || '[No text detected]');
     } catch (err) {
       this.setStatus(`Error: ${err.message}`, 'error', false);
+    } finally {
       btn.disabled = false;
     }
+  },
+
+  bindEvents() {
+    // Save username
+    document.getElementById('saveUsername').addEventListener('click', () => {
+      const val = document.getElementById('usernameInput').value.trim();
+      if (!val) { document.getElementById('usernameInput').focus(); return; }
+      UsernameManager.set(val);
+      this.showApp(UsernameManager.get());
+    });
+
+    document.getElementById('usernameInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('saveUsername').click();
+    });
+
+    // Change user
+    document.getElementById('changeUser').addEventListener('click', () => {
+      UsernameManager.clear();
+      this.resetUpload();
+      document.getElementById('usernameInput').value = '';
+      this.showModal();
+    });
+
+    // File input
+    const fileInput   = document.getElementById('fileInput');
+    const uploadLabel = document.getElementById('uploadLabel');
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) this.handleFile(e.target.files[0]);
+    });
+
+    uploadLabel.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadLabel.classList.add('drag-over');
+    });
+    uploadLabel.addEventListener('dragleave', () => uploadLabel.classList.remove('drag-over'));
+    uploadLabel.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadLabel.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) this.handleFile(file);
+    });
+
+    document.getElementById('processBtn').addEventListener('click', () => this.runOCR());
+    document.getElementById('clearBtn').addEventListener('click',   () => this.resetUpload());
+
+    document.getElementById('copyBtn').addEventListener('click', () => {
+      const text = document.getElementById('outputText').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = 'COPIED!';
+        setTimeout(() => { btn.textContent = 'COPY'; }, 2000);
+      });
+    });
   }
 };
 

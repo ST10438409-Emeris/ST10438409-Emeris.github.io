@@ -1,9 +1,3 @@
 [build]
   publish = "."
   functions = "netlify/functions"
-
-# Route all function calls cleanly
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to   = "/.netlify/functions/:splat"
-  status = 200
