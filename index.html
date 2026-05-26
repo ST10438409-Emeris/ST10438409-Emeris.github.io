@@ -1,91 +1,477 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VoxMark — Word-by-Word TTS Highlighter</title>
-  <link rel="stylesheet" href="style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>VoxMark — Word-by-Word TTS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0b0d;
+  --surface:#111318;
+  --surface2:#181c24;
+  --border:rgba(255,255,255,0.08);
+  --border2:rgba(255,255,255,0.14);
+  --text:#e8eaf0;
+  --muted:#6b7080;
+  --accent:#f5c542;
+  --accent2:#e8a800;
+  --hl-bg:rgba(245,197,66,0.15);
+  --hl-outline:rgba(245,197,66,0.5);
+  --radius:10px;
+  --radius-lg:16px;
+  --mono:'DM Mono',monospace;
+  --display:'Syne',sans-serif;
+}
+html{font-size:16px}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--mono);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* grid bg */
+body::before{
+  content:'';
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.022) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.022) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+/* glow */
+body::after{
+  content:'';
+  position:fixed;top:-200px;left:50%;transform:translateX(-50%);
+  width:700px;height:400px;pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse at center,rgba(245,197,66,0.06) 0%,transparent 70%);
+}
+
+header{
+  position:relative;z-index:1;
+  max-width:720px;margin:0 auto;
+  padding:2.5rem 2rem 1.25rem;
+  display:flex;align-items:baseline;gap:1.5rem;
+  border-bottom:1px solid var(--border);
+}
+.logo{display:flex;align-items:center;gap:.5rem}
+.logo-mark{
+  color:var(--accent);font-size:.95rem;
+  animation:pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.82)}}
+.logo-text{
+  font-family:var(--display);font-weight:800;font-size:1.55rem;
+  letter-spacing:-.03em;color:var(--text);
+}
+.tagline{font-size:.75rem;color:var(--muted);letter-spacing:.05em}
+
+main{
+  position:relative;z-index:1;
+  max-width:720px;margin:0 auto;
+  padding:2rem 2rem 4rem;
+  display:flex;flex-direction:column;gap:1.75rem;
+}
+
+.lbl{
+  font-size:.65rem;font-weight:500;
+  letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:.6rem;
+}
+
+/* textarea */
+textarea{
+  width:100%;min-height:110px;resize:vertical;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:var(--radius);
+  padding:1rem 1.1rem;
+  font-family:var(--mono);font-size:.88rem;line-height:1.75;
+  color:var(--text);outline:none;
+  transition:border-color .2s;
+}
+textarea:focus{border-color:var(--accent2)}
+.char-count{margin-top:.35rem;font-size:.7rem;color:var(--muted);text-align:right}
+
+/* display box */
+#display-box{
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:var(--radius-lg);
+  padding:1.3rem 1.4rem;
+  font-size:1.05rem;line-height:2;
+  min-height:110px;color:var(--text);
+}
+.word{
+  display:inline;border-radius:4px;padding:1px 3px;
+  transition:background .07s,color .07s,outline .07s;
+  cursor:default;
+}
+.word.active{
+  background:var(--hl-bg);
+  color:var(--accent);
+  outline:1.5px solid var(--hl-outline);
+  font-weight:500;
+}
+.word.done{color:var(--muted)}
+
+/* controls */
+.controls-row{display:flex;align-items:center;gap:.9rem;flex-wrap:wrap}
+.main-controls{margin-bottom:1.1rem}
+
+.btn{
+  width:44px;height:44px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface2);
+  border:1px solid var(--border2);
+  border-radius:50%;
+  color:var(--text);cursor:pointer;
+  transition:background .15s,border-color .15s,transform .1s;
+  flex-shrink:0;
+}
+.btn svg{width:18px;height:18px}
+.btn:hover:not(:disabled){background:var(--surface);border-color:var(--accent);color:var(--accent)}
+.btn:active:not(:disabled){transform:scale(.93)}
+.btn:disabled{opacity:.28;cursor:not-allowed}
+#btn-play:not(:disabled){border-color:var(--accent);color:var(--accent)}
+
+.progress-wrap{flex:1;min-width:160px;display:flex;flex-direction:column;gap:5px}
+.progress-bar{height:3px;background:var(--border2);border-radius:2px;overflow:hidden}
+#progress-fill{height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width .25s linear}
+#status-text{font-size:.7rem;color:var(--muted);letter-spacing:.06em}
+
+.sliders-row{gap:1.4rem;align-items:flex-end;margin-top:.25rem}
+.sg{display:flex;flex-direction:column;gap:6px;min-width:120px}
+.sg label{
+  font-size:.7rem;color:var(--muted);
+  letter-spacing:.06em;text-transform:uppercase;
+  display:flex;justify-content:space-between;
+}
+.sg label span{color:var(--accent)}
+
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:4px;
+  background:var(--border2);border-radius:2px;outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:16px;height:16px;border-radius:50%;
+  background:var(--accent);cursor:pointer;
+  border:2px solid var(--bg);
+  transition:transform .1s;
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+input[type=range]::-moz-range-thumb{
+  width:16px;height:16px;border-radius:50%;
+  background:var(--accent);cursor:pointer;
+  border:2px solid var(--bg);
+}
+
+.voice-grp{flex:1;min-width:180px}
+select{
+  width:100%;padding:8px 10px;
+  background:var(--surface2);border:1px solid var(--border2);
+  border-radius:var(--radius);color:var(--text);
+  font-family:var(--mono);font-size:.8rem;outline:none;cursor:pointer;
+  transition:border-color .15s;
+}
+select:focus{border-color:var(--accent2)}
+
+.fallback{
+  font-size:.75rem;color:var(--muted);
+  background:var(--surface);
+  border:1px solid rgba(245,197,66,.22);
+  border-radius:var(--radius);
+  padding:.7rem 1rem;line-height:1.6;
+  display:none;
+}
+
+footer{
+  position:relative;z-index:1;
+  max-width:720px;margin:0 auto;
+  padding:1.1rem 2rem;
+  border-top:1px solid var(--border);
+  display:flex;justify-content:space-between;
+  font-size:.68rem;color:var(--muted);
+}
+
+@media(max-width:580px){
+  header{flex-direction:column;gap:.2rem;padding:1.5rem 1.1rem .9rem}
+  main{padding:1.25rem 1.1rem 3rem}
+  .sliders-row{flex-direction:column}
+  .sg,.voice-grp{min-width:unset;width:100%}
+  footer{flex-direction:column;gap:.2rem}
+}
+</style>
 </head>
 <body>
 
-  <div class="bg-grid"></div>
-  <div class="bg-glow"></div>
+<header>
+  <div class="logo">
+    <span class="logo-mark">▶</span>
+    <span class="logo-text">VoxMark</span>
+  </div>
+  <p class="tagline">Read along as you listen.</p>
+</header>
 
-  <header>
-    <div class="logo">
-      <span class="logo-mark">▶</span>
-      <span class="logo-text">VoxMark</span>
-    </div>
-    <p class="tagline">Read along as you listen.</p>
-  </header>
+<main>
 
-  <main>
+  <section>
+    <div class="lbl">01 — your text</div>
+    <textarea id="text-input" spellcheck="false"
+      placeholder="Paste any text here — VoxMark will read it and highlight each word as it's spoken."
+    >To be, or not to be, that is the question: Whether 'tis nobler in the mind to suffer the slings and arrows of outrageous fortune, or to take arms against a sea of troubles, and by opposing end them.</textarea>
+    <div class="char-count"><span id="char-count">0</span> characters · <span id="word-count">0</span> words</div>
+  </section>
 
-    <section class="input-section">
-      <div class="section-label">01 — your text</div>
-      <textarea
-        id="text-input"
-        spellcheck="false"
-        placeholder="Paste or type anything here. A speech, a paragraph, a poem — VoxMark will read it word by word and highlight as it goes."
-      >To be, or not to be, that is the question: Whether 'tis nobler in the mind to suffer the slings and arrows of outrageous fortune, or to take arms against a sea of troubles, and by opposing end them.</textarea>
-      <div class="char-count"><span id="char-count">0</span> characters · <span id="word-count">0</span> words</div>
-    </section>
+  <section>
+    <div class="lbl">02 — read-along</div>
+    <div id="display-box" aria-live="polite"></div>
+  </section>
 
-    <section class="display-section">
-      <div class="section-label">02 — read-along view</div>
-      <div id="display-box" aria-live="polite" aria-label="Read-along text with word highlighting"></div>
-    </section>
+  <section>
+    <div class="lbl">03 — controls</div>
 
-    <section class="controls-section">
-      <div class="section-label">03 — controls</div>
-
-      <div class="controls-row main-controls">
-        <button class="btn-icon btn-play" id="btn-play" aria-label="Play">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-        </button>
-        <button class="btn-icon btn-pause" id="btn-pause" disabled aria-label="Pause">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-        </button>
-        <button class="btn-icon btn-stop" id="btn-stop" disabled aria-label="Stop">
-          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
-        </button>
-
-        <div class="progress-wrap">
-          <div class="progress-bar"><div id="progress-fill"></div></div>
-          <span id="status-text">Ready</span>
-        </div>
+    <div class="controls-row main-controls">
+      <button class="btn" id="btn-play" aria-label="Play">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <button class="btn" id="btn-pause" disabled aria-label="Pause">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+      <button class="btn" id="btn-stop" disabled aria-label="Stop">
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+      </button>
+      <div class="progress-wrap">
+        <div class="progress-bar"><div id="progress-fill"></div></div>
+        <span id="status-text">Ready</span>
       </div>
-
-      <div class="controls-row sliders-row">
-        <div class="slider-group">
-          <label for="rate-slider">Speed <span id="rate-val">1.0×</span></label>
-          <input type="range" id="rate-slider" min="0.5" max="2" step="0.1" value="1" />
-        </div>
-        <div class="slider-group">
-          <label for="pitch-slider">Pitch <span id="pitch-val">1.0</span></label>
-          <input type="range" id="pitch-slider" min="0.5" max="2" step="0.1" value="1" />
-        </div>
-        <div class="slider-group voice-group">
-          <label for="voice-select">Voice</label>
-          <select id="voice-select"><option>Loading…</option></select>
-        </div>
-      </div>
-    </section>
-
-    <div id="fallback-banner" class="fallback-banner" style="display:none;">
-      ⚠ Word boundary events aren't supported in your browser — using estimated timing instead.
     </div>
 
-  </main>
+    <div class="controls-row sliders-row">
+      <div class="sg">
+        <label for="rate-slider">Speed <span id="rate-val">1.0×</span></label>
+        <input type="range" id="rate-slider" min="0.5" max="2" step="0.1" value="1"/>
+      </div>
+      <div class="sg">
+        <label for="pitch-slider">Pitch <span id="pitch-val">1.0</span></label>
+        <input type="range" id="pitch-slider" min="0.5" max="2" step="0.1" value="1"/>
+      </div>
+      <div class="sg voice-grp">
+        <label for="voice-select">Voice</label>
+        <select id="voice-select"><option>Loading voices…</option></select>
+      </div>
+    </div>
+  </section>
 
-  <footer>
-    <span>VoxMark</span>
-    <span>Built with the Web Speech API · No data leaves your browser</span>
-  </footer>
+  <div id="fallback-msg" class="fallback">
+    ⚠ Your browser doesn't support word boundary events — using estimated timing instead.
+  </div>
 
-  <script src="script.js"></script>
+</main>
+
+<footer>
+  <span>VoxMark</span>
+  <span>Web Speech API · no data leaves your browser</span>
+</footer>
+
+<script>
+const textInput    = document.getElementById('text-input');
+const displayBox   = document.getElementById('display-box');
+const btnPlay      = document.getElementById('btn-play');
+const btnPause     = document.getElementById('btn-pause');
+const btnStop      = document.getElementById('btn-stop');
+const rateSlider   = document.getElementById('rate-slider');
+const pitchSlider  = document.getElementById('pitch-slider');
+const rateVal      = document.getElementById('rate-val');
+const pitchVal     = document.getElementById('pitch-val');
+const voiceSelect  = document.getElementById('voice-select');
+const statusText   = document.getElementById('status-text');
+const progressFill = document.getElementById('progress-fill');
+const charCount    = document.getElementById('char-count');
+const wordCountEl  = document.getElementById('word-count');
+const fallbackMsg  = document.getElementById('fallback-msg');
+
+let words = [], wordSpans = [], utterance = null;
+let isSpeaking = false, isPaused = false;
+let voices = [], activeIdx = -1;
+let boundaryFired = false, resumeTimer = null, fallbackTimers = [];
+
+function tokenise(text) {
+  const tokens = [], re = /\S+|\s+/g;
+  let m;
+  while ((m = re.exec(text)) !== null)
+    tokens.push({ text: m[0], start: m.index, end: m.index + m[0].length, isWord: /\S/.test(m[0]) });
+  return tokens;
+}
+
+function renderDisplay(text) {
+  displayBox.innerHTML = '';
+  words = tokenise(text);
+  wordSpans = [];
+  words.forEach(tok => {
+    if (tok.isWord) {
+      const span = document.createElement('span');
+      span.className = 'word';
+      span.textContent = tok.text;
+      tok.spanIdx = wordSpans.length;
+      wordSpans.push(span);
+      displayBox.appendChild(span);
+    } else {
+      displayBox.appendChild(document.createTextNode(tok.text));
+    }
+  });
+}
+
+function updateStats() {
+  const t = textInput.value;
+  charCount.textContent = t.length;
+  wordCountEl.textContent = t.trim() ? t.trim().split(/\s+/).length : 0;
+}
+
+function highlightAt(charIndex) {
+  const wt = words.filter(w => w.isWord);
+  let match = -1;
+  for (let i = 0; i < wt.length; i++) {
+    if (wt[i].start <= charIndex && charIndex < wt[i].end) { match = i; break; }
+  }
+  if (match === -1) {
+    for (let i = wt.length - 1; i >= 0; i--) {
+      if (wt[i].start <= charIndex) { match = i; break; }
+    }
+  }
+  if (match === activeIdx) return;
+  if (activeIdx >= 0 && wordSpans[activeIdx]) {
+    wordSpans[activeIdx].classList.remove('active');
+    wordSpans[activeIdx].classList.add('done');
+  }
+  activeIdx = match;
+  if (activeIdx >= 0 && wordSpans[activeIdx]) {
+    wordSpans[activeIdx].classList.remove('done');
+    wordSpans[activeIdx].classList.add('active');
+    wordSpans[activeIdx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  const pct = wt.length > 1 ? (activeIdx / (wt.length - 1)) * 100 : 0;
+  progressFill.style.width = pct.toFixed(1) + '%';
+}
+
+function clearHighlight() {
+  wordSpans.forEach(s => s.classList.remove('active', 'done'));
+  activeIdx = -1;
+  progressFill.style.width = '0%';
+}
+
+function loadVoices() {
+  let all = window.speechSynthesis.getVoices();
+  voices = all.filter(v => v.lang.startsWith('en'));
+  if (!voices.length) voices = all;
+  voiceSelect.innerHTML = '';
+  if (!voices.length) { voiceSelect.innerHTML = '<option value="">Default</option>'; return; }
+  voices.forEach((v, i) => {
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = v.name + (v.default ? ' ★' : '') + ' (' + v.lang + ')';
+    voiceSelect.appendChild(o);
+  });
+}
+window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+loadVoices();
+
+function runFallback() {
+  fallbackTimers.forEach(clearTimeout); fallbackTimers = [];
+  fallbackMsg.style.display = 'block';
+  const rate = parseFloat(rateSlider.value);
+  const wt = words.filter(w => w.isWord);
+  let delay = 320;
+  wt.forEach(tok => {
+    const dur = Math.max(170, tok.text.length * 55 / rate);
+    fallbackTimers.push(setTimeout(() => highlightAt(tok.start), delay));
+    delay += dur;
+  });
+}
+
+function startWatchdog() {
+  clearInterval(resumeTimer);
+  resumeTimer = setInterval(() => {
+    if (isSpeaking && !isPaused && window.speechSynthesis.paused)
+      window.speechSynthesis.resume();
+  }, 5000);
+}
+
+function speak() {
+  const text = textInput.value.trim();
+  if (!text) return;
+  window.speechSynthesis.cancel();
+  clearHighlight();
+  renderDisplay(textInput.value);
+  boundaryFired = false;
+
+  utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate  = parseFloat(rateSlider.value);
+  utterance.pitch = parseFloat(pitchSlider.value);
+  const vi = parseInt(voiceSelect.value);
+  if (!isNaN(vi) && voices[vi]) utterance.voice = voices[vi];
+
+  utterance.addEventListener('boundary', e => {
+    if (e.name !== 'word') return;
+    if (!boundaryFired) { boundaryFired = true; fallbackMsg.style.display = 'none'; }
+    highlightAt(e.charIndex);
+  });
+
+  utterance.addEventListener('start', () => {
+    isSpeaking = true; isPaused = false;
+    setStatus('Speaking…'); updateButtons(); startWatchdog();
+    setTimeout(() => { if (!boundaryFired) runFallback(); }, 500);
+  });
+  utterance.addEventListener('pause',  () => { isPaused = true;  setStatus('Paused');    updateButtons(); });
+  utterance.addEventListener('resume', () => { isPaused = false; setStatus('Speaking…'); updateButtons(); });
+  utterance.addEventListener('end',    () => finish('Done ✓'));
+  utterance.addEventListener('error',  e  => finish('Error: ' + e.error));
+
+  window.speechSynthesis.speak(utterance);
+}
+
+function finish(msg) {
+  isSpeaking = false; isPaused = false;
+  clearInterval(resumeTimer);
+  fallbackTimers.forEach(clearTimeout);
+  clearHighlight();
+  progressFill.style.width = '100%';
+  setTimeout(() => { progressFill.style.width = '0%'; }, 800);
+  setStatus(msg); updateButtons();
+}
+
+function setStatus(m) { statusText.textContent = m; }
+
+function updateButtons() {
+  const playing = isSpeaking && !isPaused;
+  btnPlay.disabled  = playing;
+  btnPause.disabled = !isSpeaking || isPaused;
+  btnStop.disabled  = !isSpeaking;
+}
+
+btnPlay.addEventListener('click',  () => isPaused ? window.speechSynthesis.resume() : speak());
+btnPause.addEventListener('click', () => { if (isSpeaking && !isPaused) window.speechSynthesis.pause(); });
+btnStop.addEventListener('click',  () => {
+  window.speechSynthesis.cancel();
+  fallbackTimers.forEach(clearTimeout);
+  finish('Stopped');
+});
+
+rateSlider.addEventListener('input',  () => { rateVal.textContent  = parseFloat(rateSlider.value).toFixed(1) + '×'; });
+pitchSlider.addEventListener('input', () => { pitchVal.textContent = parseFloat(pitchSlider.value).toFixed(1); });
+textInput.addEventListener('input', () => { updateStats(); if (!isSpeaking) renderDisplay(textInput.value); });
+
+// init
+updateStats();
+renderDisplay(textInput.value);
+updateButtons();
+</script>
 </body>
 </html>
