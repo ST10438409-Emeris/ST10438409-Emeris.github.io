@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OCR Pipeline</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+  <!-- Username Modal -->
+  <div class="modal-overlay" id="usernameModal">
+    <div class="modal">
+      <div class="modal-tag">FIRST VISIT</div>
+      <h2>Who are you?</h2>
+      <p>Your username prefixes all uploaded images and results. Choose wisely.</p>
+      <input type="text" id="usernameInput" class="username-input" placeholder="e.g. dylan_st10438409" maxlength="32" autocomplete="off" />
+      <button class="submit-btn" id="saveUsername">CONFIRM</button>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div class="container" id="app" style="display:none">
+
+    <header class="header">
+      <div class="header-left">
+        <span class="header-tag">OCR//PIPELINE</span>
+        <h1>Image Text Extractor</h1>
+      </div>
+      <div class="header-right">
+        <span class="user-badge" id="userBadge"></span>
+        <button class="change-user-btn" id="changeUser">↺ change</button>
+      </div>
+    </header>
+
+    <main>
+
+      <!-- Upload Section -->
+      <section class="upload-section">
+        <label class="upload-btn" id="uploadLabel" for="fileInput">
+          <div class="upload-icon">⬆</div>
+          <span class="upload-primary">Drop image or click to upload</span>
+          <span class="upload-sub">PNG, JPG, JPEG, WEBP — max 5MB</span>
+          <input type="file" id="fileInput" accept="image/*" hidden />
+        </label>
+      </section>
+
+      <!-- Preview + Controls -->
+      <section class="preview-section" id="previewSection" style="display:none">
+        <div class="preview-box">
+          <div class="preview-label">PREVIEW</div>
+          <img id="previewImage" class="preview-image" alt="Preview" />
+          <div class="preview-meta" id="previewMeta"></div>
+        </div>
+        <div class="controls">
+          <div class="repo-config">
+            <label>GitHub Repo <span class="hint">(owner/repo)</span></label>
+            <input type="text" id="repoInput" class="config-input" placeholder="ST10438409-Emeris/ST10438409-Emeris.github.io" />
+            <label>GitHub Token <span class="hint">(needs repo scope)</span></label>
+            <input type="password" id="tokenInput" class="config-input" placeholder="ghp_xxxxxxxxxxxx" />
+            <p class="token-note">⚠ Token is stored in localStorage. Don't use on shared machines.</p>
+          </div>
+          <button class="submit-btn" id="processBtn">RUN OCR</button>
+          <button class="clear-btn" id="clearBtn">✕ Clear</button>
+        </div>
+      </section>
+
+      <!-- Status -->
+      <div class="status-message" id="statusMessage" style="display:none">
+        <div class="status-inner">
+          <span class="loading-spinner" id="spinner"></span>
+          <span id="statusText"></span>
+        </div>
+      </div>
+
+      <!-- Output -->
+      <section class="output-section" id="outputSection" style="display:none">
+        <div class="output-header">
+          <span class="output-label">EXTRACTED TEXT</span>
+          <button class="copy-btn" id="copyBtn">COPY</button>
+        </div>
+        <div class="output-box">
+          <pre class="output-text" id="outputText"></pre>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <span>Powered by PaddleOCR · GitHub Actions · Pages</span>
+    </footer>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
