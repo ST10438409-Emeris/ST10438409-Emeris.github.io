@@ -1,0 +1,112 @@
+name: OCR Processor
+
+on:
+  push:
+    paths:
+      - 'images/**'
+
+permissions:
+  contents: write
+
+jobs:
+  run-ocr:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout repo ──────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # need previous commit to detect changed files
+
+      # ── 2. Detect newly added image ───────────────────────────────────
+      - name: Get changed image file
+        id: changed
+        run: |
+          # Find files added/modified in the images/ folder in the latest commit
+          FILE=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- 'images/' | head -n 1)
+          echo "file=$FILE" >> $GITHUB_OUTPUT
+          echo "Detected image: $FILE"
+
+      # ── 3. Skip if no image found ─────────────────────────────────────
+      - name: Check if image exists
+        if: steps.changed.outputs.file == ''
+        run: |
+          echo "No new image detected in images/ folder. Skipping."
+          exit 0
+
+      # ── 4. Set up Python ──────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # ── 5. Cache pip deps ─────────────────────────────────────────────
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-paddleocr
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # ── 6. Install dependencies ───────────────────────────────────────
+      - name: Install PaddleOCR and dependencies
+        run: |
+          pip install --upgrade pip
+          pip install paddlepaddle==2.6.1 -f https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html
+          pip install paddleocr Pillow
+
+      # ── 7. Run OCR ────────────────────────────────────────────────────
+      - name: Run OCR on image
+        id: ocr
+        run: |
+          IMAGE_FILE="${{ steps.changed.outputs.file }}"
+
+          # Derive output filename: images/user_123.png -> results/user_123.txt
+          BASENAME=$(basename "$IMAGE_FILE")
+          NAME="${BASENAME%.*}"
+          RESULT_FILE="results/${NAME}.txt"
+
+          mkdir -p results
+
+          python3 - <<EOF
+          import sys
+          from paddleocr import PaddleOCR
+
+          image_path = "$IMAGE_FILE"
+          result_path = "$RESULT_FILE"
+
+          try:
+              ocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+              result = ocr.ocr(image_path, cls=True)
+
+              lines = []
+              if result and result[0]:
+                  for line in result[0]:
+                      text = line[1][0]
+                      confidence = line[1][1]
+                      lines.append(f"{text}  [conf: {confidence:.2f}]")
+
+              output = "\n".join(lines) if lines else "[No text detected]"
+
+          except Exception as e:
+              output = f"[OCR Error: {str(e)}]"
+
+          with open(result_path, 'w', encoding='utf-8') as f:
+              f.write(output)
+
+          print(f"OCR complete. Lines extracted: {len(lines) if 'lines' in dir() else 0}")
+          print(f"Output saved to: {result_path}")
+          EOF
+
+          echo "result_file=$RESULT_FILE" >> $GITHUB_OUTPUT
+
+      # ── 8. Commit result back to repo ─────────────────────────────────
+      - name: Commit OCR result
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add results/
+          git diff --cached --quiet || git commit -m "OCR result: ${{ steps.ocr.outputs.result_file }}"
+          git push
