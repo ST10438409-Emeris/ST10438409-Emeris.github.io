@@ -1,8 +1,0 @@
-{
-  "name": "ocr-functions",
-  "version": "1.0.0",
-  "description": "Netlify functions for OCR pipeline",
-  "dependencies": {
-    "tesseract.js": "^5.0.5"
-  }
-}

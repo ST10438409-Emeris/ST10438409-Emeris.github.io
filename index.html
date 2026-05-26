@@ -2,90 +2,90 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>OCR Pipeline</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoxMark — Word-by-Word TTS Highlighter</title>
   <link rel="stylesheet" href="style.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <!-- Username Modal -->
-  <div class="modal-overlay" id="usernameModal">
-    <div class="modal">
-      <div class="modal-tag">FIRST VISIT</div>
-      <h2>Who are you?</h2>
-      <p>Your username prefixes all uploaded images and results. Choose wisely.</p>
-      <input type="text" id="usernameInput" class="username-input" placeholder="e.g. john_123" maxlength="32" autocomplete="off" />
-      <button class="submit-btn" id="saveUsername">CONFIRM</button>
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <header>
+    <div class="logo">
+      <span class="logo-mark">▶</span>
+      <span class="logo-text">VoxMark</span>
     </div>
-  </div>
+    <p class="tagline">Read along as you listen.</p>
+  </header>
 
-  <!-- Main App -->
-  <div class="container" id="app" style="display:none">
+  <main>
 
-    <header class="header">
-      <div class="header-left">
-        <span class="header-tag">OCR//PIPELINE</span>
-        <h1>Image Text Extractor</h1>
-      </div>
-      <div class="header-right">
-        <span class="user-badge" id="userBadge"></span>
-        <button class="change-user-btn" id="changeUser">↺ change</button>
-      </div>
-    </header>
+    <section class="input-section">
+      <div class="section-label">01 — your text</div>
+      <textarea
+        id="text-input"
+        spellcheck="false"
+        placeholder="Paste or type anything here. A speech, a paragraph, a poem — VoxMark will read it word by word and highlight as it goes."
+      >To be, or not to be, that is the question: Whether 'tis nobler in the mind to suffer the slings and arrows of outrageous fortune, or to take arms against a sea of troubles, and by opposing end them.</textarea>
+      <div class="char-count"><span id="char-count">0</span> characters · <span id="word-count">0</span> words</div>
+    </section>
 
-    <main>
+    <section class="display-section">
+      <div class="section-label">02 — read-along view</div>
+      <div id="display-box" aria-live="polite" aria-label="Read-along text with word highlighting"></div>
+    </section>
 
-      <!-- Upload Section -->
-      <section class="upload-section">
-        <label class="upload-btn" id="uploadLabel" for="fileInput">
-          <div class="upload-icon">⬆</div>
-          <span class="upload-primary">Drop image or click to upload</span>
-          <span class="upload-sub">PNG, JPG, JPEG, WEBP — max 5MB</span>
-          <input type="file" id="fileInput" accept="image/*" hidden />
-        </label>
-      </section>
+    <section class="controls-section">
+      <div class="section-label">03 — controls</div>
 
-      <!-- Preview + Controls -->
-      <section class="preview-section" id="previewSection" style="display:none">
-        <div class="preview-box">
-          <div class="preview-label">PREVIEW</div>
-          <img id="previewImage" class="preview-image" alt="Preview" />
-          <div class="preview-meta" id="previewMeta"></div>
-        </div>
-        <div class="controls">
-          <button class="submit-btn" id="processBtn">RUN OCR</button>
-          <button class="clear-btn" id="clearBtn">✕ Clear</button>
-        </div>
-      </section>
+      <div class="controls-row main-controls">
+        <button class="btn-icon btn-play" id="btn-play" aria-label="Play">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="btn-icon btn-pause" id="btn-pause" disabled aria-label="Pause">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+        <button class="btn-icon btn-stop" id="btn-stop" disabled aria-label="Stop">
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+        </button>
 
-      <!-- Status -->
-      <div class="status-message" id="statusMessage" style="display:none">
-        <div class="status-inner">
-          <span class="loading-spinner" id="spinner"></span>
-          <span id="statusText"></span>
+        <div class="progress-wrap">
+          <div class="progress-bar"><div id="progress-fill"></div></div>
+          <span id="status-text">Ready</span>
         </div>
       </div>
 
-      <!-- Output -->
-      <section class="output-section" id="outputSection" style="display:none">
-        <div class="output-header">
-          <span class="output-label">EXTRACTED TEXT</span>
-          <button class="copy-btn" id="copyBtn">COPY</button>
+      <div class="controls-row sliders-row">
+        <div class="slider-group">
+          <label for="rate-slider">Speed <span id="rate-val">1.0×</span></label>
+          <input type="range" id="rate-slider" min="0.5" max="2" step="0.1" value="1" />
         </div>
-        <div class="output-box">
-          <pre class="output-text" id="outputText"></pre>
+        <div class="slider-group">
+          <label for="pitch-slider">Pitch <span id="pitch-val">1.0</span></label>
+          <input type="range" id="pitch-slider" min="0.5" max="2" step="0.1" value="1" />
         </div>
-      </section>
+        <div class="slider-group voice-group">
+          <label for="voice-select">Voice</label>
+          <select id="voice-select"><option>Loading…</option></select>
+        </div>
+      </div>
+    </section>
 
-    </main>
+    <div id="fallback-banner" class="fallback-banner" style="display:none;">
+      ⚠ Word boundary events aren't supported in your browser — using estimated timing instead.
+    </div>
 
-    <footer class="footer">
-      <span>Powered by PaddleOCR · GitHub Actions · Netlify</span>
-    </footer>
+  </main>
 
-  </div>
+  <footer>
+    <span>VoxMark</span>
+    <span>Built with the Web Speech API · No data leaves your browser</span>
+  </footer>
 
-  <script src="app.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
