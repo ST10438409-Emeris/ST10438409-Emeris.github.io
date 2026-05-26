@@ -18,19 +18,6 @@ const UsernameManager = {
 };
 
 // ─────────────────────────────────────────────
-// ConfigManager (repo + token)
-// ─────────────────────────────────────────────
-const ConfigManager = {
-  repoKey: 'ocr_repo',
-  tokenKey: 'ocr_token',
-
-  getRepo() { return localStorage.getItem(this.repoKey) || ''; },
-  getToken() { return localStorage.getItem(this.tokenKey) || ''; },
-  setRepo(v) { localStorage.setItem(this.repoKey, v.trim()); },
-  setToken(v) { localStorage.setItem(this.tokenKey, v.trim()); }
-};
-
-// ─────────────────────────────────────────────
 // ImageUploader
 // ─────────────────────────────────────────────
 const ImageUploader = {
@@ -63,66 +50,33 @@ const ImageUploader = {
 };
 
 // ─────────────────────────────────────────────
-// GitHubAPIClient
+// NetlifyClient — all GitHub calls go server-side
 // ─────────────────────────────────────────────
-const GitHubAPIClient = {
-  baseURL: 'https://api.github.com',
-
-  headers(token) {
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'Content-Type': 'application/json'
-    };
-  },
-
-  // Get existing file SHA (needed to update a file)
-  async getFileSHA(repo, path, token) {
-    const res = await fetch(`${this.baseURL}/repos/${repo}/contents/${path}`, {
-      headers: this.headers(token)
+const NetlifyClient = {
+  // Upload image via Netlify function
+  async uploadImage(username, filename, base64, mimeType) {
+    const res = await fetch('/.netlify/functions/upload-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, filename, base64, mimeType })
     });
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`Failed to check file: ${res.status}`);
+
     const data = await res.json();
-    return data.sha || null;
+    if (!res.ok) throw new Error(data.error || `Upload failed: ${res.status}`);
+    return data; // { resultPath }
   },
 
-  // Push a file to the repo
-  async pushFile(repo, path, content, message, token) {
-    const sha = await this.getFileSHA(repo, path, token);
-
-    const body = {
-      message,
-      content, // base64
-    };
-    if (sha) body.sha = sha;
-
-    const res = await fetch(`${this.baseURL}/repos/${repo}/contents/${path}`, {
-      method: 'PUT',
-      headers: this.headers(token),
-      body: JSON.stringify(body)
+  // Poll for OCR result via Netlify function
+  async getResult(resultPath) {
+    const res = await fetch('/.netlify/functions/get-result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resultPath })
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `GitHub push failed: ${res.status}`);
-    }
-
-    return await res.json();
-  },
-
-  // Fetch a file's text content
-  async fetchFileContent(repo, path, token) {
-    const res = await fetch(`${this.baseURL}/repos/${repo}/contents/${path}`, {
-      headers: this.headers(token),
-      cache: 'no-store'
-    });
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
     const data = await res.json();
-    // content is base64
-    return atob(data.content.replace(/\n/g, ''));
+    if (!res.ok) throw new Error(data.error || `Poll failed: ${res.status}`);
+    return data; // { ready: bool, text: string|null }
   }
 };
 
@@ -132,10 +86,10 @@ const GitHubAPIClient = {
 const PollingManager = {
   intervalId: null,
   attempts: 0,
-  maxAttempts: 40,      // 40 × 8s = ~5.3 min max wait
+  maxAttempts: 40,    // 40 × 8s = ~5.3 min
   intervalMs: 8000,
 
-  start(repo, resultPath, token, onResult, onTimeout, onError) {
+  start(resultPath, onResult, onTimeout, onError) {
     this.attempts = 0;
     this.stop();
 
@@ -143,11 +97,11 @@ const PollingManager = {
       this.attempts++;
 
       try {
-        const text = await GitHubAPIClient.fetchFileContent(repo, resultPath, token);
+        const data = await NetlifyClient.getResult(resultPath);
 
-        if (text !== null) {
+        if (data.ready) {
           this.stop();
-          onResult(text);
+          onResult(data.text);
           return;
         }
       } catch (err) {
@@ -184,7 +138,6 @@ const UIController = {
     }
 
     this.bindEvents();
-    this.restoreConfig();
   },
 
   showModal() {
@@ -196,11 +149,6 @@ const UIController = {
     document.getElementById('usernameModal').style.display = 'none';
     document.getElementById('app').style.display = 'block';
     document.getElementById('userBadge').textContent = `@${username}`;
-  },
-
-  restoreConfig() {
-    document.getElementById('repoInput').value = ConfigManager.getRepo();
-    document.getElementById('tokenInput').value = ConfigManager.getToken();
   },
 
   setStatus(msg, type = 'info', spinning = false) {
@@ -298,14 +246,6 @@ const UIController = {
         setTimeout(() => { btn.textContent = 'COPY'; }, 2000);
       });
     });
-
-    // ── Save config on change
-    document.getElementById('repoInput').addEventListener('change', (e) => {
-      ConfigManager.setRepo(e.target.value);
-    });
-    document.getElementById('tokenInput').addEventListener('change', (e) => {
-      ConfigManager.setToken(e.target.value);
-    });
   },
 
   handleFile(file) {
@@ -326,18 +266,9 @@ const UIController = {
 
   async runOCR() {
     const username = UsernameManager.get();
-    const repo = document.getElementById('repoInput').value.trim();
-    const token = document.getElementById('tokenInput').value.trim();
-
-    ConfigManager.setRepo(repo);
-    ConfigManager.setToken(token);
 
     if (!ImageUploader.file) {
       this.setStatus('Please select an image first.', 'error');
-      return;
-    }
-    if (!repo || !token) {
-      this.setStatus('GitHub repo and token are required.', 'error');
       return;
     }
 
@@ -345,43 +276,36 @@ const UIController = {
     btn.disabled = true;
 
     try {
-      // Build paths
       const timestamp = Date.now();
       const ext = ImageUploader.file.name.split('.').pop();
       const filename = `${username}_${timestamp}.${ext}`;
-      const imagePath = `images/${filename}`;
-      const resultPath = `results/${username}_${timestamp}.txt`;
 
       this.setStatus('Encoding image…', 'info', true);
       const base64 = await ImageUploader.toBase64();
 
-      this.setStatus('Pushing image to GitHub…', 'info', true);
-      await GitHubAPIClient.pushFile(
-        repo,
-        imagePath,
+      this.setStatus('Uploading image…', 'info', true);
+      const { resultPath } = await NetlifyClient.uploadImage(
+        username,
+        filename,
         base64,
-        `OCR upload: ${filename}`,
-        token
+        ImageUploader.file.type
       );
 
-      this.setStatus('Image uploaded. Waiting for GitHub Actions to process…', 'info', true);
+      this.setStatus('Uploaded. Waiting for OCR to process… (this takes 2–4 min)', 'info', true);
 
-      // Poll for result
       PollingManager.start(
-        repo,
         resultPath,
-        token,
         (text) => {
           this.setStatus('OCR complete!', 'success', false);
           this.showOutput(text);
           btn.disabled = false;
         },
         () => {
-          this.setStatus('Timed out waiting for OCR result. Check Actions tab in GitHub.', 'error', false);
+          this.setStatus('Timed out. Check the Actions tab in GitHub for errors.', 'error', false);
           btn.disabled = false;
         },
         (err) => {
-          this.setStatus(`Error polling result: ${err.message}`, 'error', false);
+          this.setStatus(`Polling error: ${err.message}`, 'error', false);
           btn.disabled = false;
         }
       );
