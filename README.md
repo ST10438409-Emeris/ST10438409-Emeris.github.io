@@ -19,35 +19,6 @@ A clean, dark read-along tool powered by the **Web Speech API**. Paste any text,
 
 ---
 
-## Deploy to GitHub Pages (5 minutes)
-
-### Option A — GitHub UI (easiest)
-
-1. Create a new repository on GitHub (e.g. `voxmark`)
-2. Upload these three files:
-   - `index.html`
-   - `style.css`
-   - `script.js`
-3. Go to **Settings → Pages**
-4. Under *Branch*, select `main` and `/ (root)`, then click **Save**
-5. Your site will be live at:  
-   `https://YOUR-USERNAME.github.io/voxmark`
-
-### Option B — Git CLI
-
-```bash
-git init
-git add .
-git commit -m "initial commit"
-git branch -M main
-git remote add origin https://github.com/YOUR-USERNAME/voxmark.git
-git push -u origin main
-```
-
-Then enable Pages in the repo settings as above.
-
----
-
 ## Browser Support
 
 | Browser | Word highlighting | Notes |
@@ -61,7 +32,7 @@ Then enable Pages in the repo settings as above.
 ## File Structure
 
 ```
-voxmark/
+repo/
 ├── index.html   # Markup + Google Fonts import
 ├── style.css    # Dark editorial theme
 ├── script.js    # TTS engine + highlight logic
@@ -96,7 +67,3 @@ Edit CSS variables at the top of `style.css`:
 Change the default sample text in `index.html` inside the `<textarea>` element.
 
 ---
-
-## License
-
-MIT — use it however you like.
