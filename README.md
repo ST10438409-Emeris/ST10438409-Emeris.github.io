@@ -2,7 +2,7 @@
 
 A clean, dark read-along tool powered by the **Web Speech API**. Paste any text, hit Play, and each word lights up in sync with the audio. Zero dependencies. No server needed. Works entirely in the browser.
 
-**[Live Demo →](https://YOUR-USERNAME.github.io/voxmark)**
+**[Live Demo →](https://st10438409-emeris.github.io/)**
 
 ---
 
